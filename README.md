@@ -28,7 +28,7 @@ Poniższy przykład przedstawia pełny, poprawny cykl pracy z aplikacją w termi
 ### Krok 1: Otwórz terminal i przejdź do katalogu projektu
 
 ```powershell
-cd "c:\Users\ket4up44\Desktop\vsc projects\python"
+cd "C:\Users\Nazwa twojego komputera\Desktop\vsc projects\python"
 chcp 65001
 ```
 *(Polecenie `chcp 65001` jest zalecane na systemie Windows, aby terminal poprawnie interpretował znaki UTF-8)*.
