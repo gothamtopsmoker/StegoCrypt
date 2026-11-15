@@ -21,32 +21,72 @@ Pozwala na bezpieczne ukrywanie zaszyfrowanych wiadomości wewnątrz pozornie ni
 
 ---
 
-## 🚀 Użycie w Linii Poleceń (CLI)
+## 🎯 Kompletny Przewodnik Krok po Kroku (Quickstart)
 
-### 1. Ukrywanie wiadomości (`hide`)
+Poniższy przykład przedstawia pełny, poprawny cykl pracy z aplikacją w terminalu Windows / Linux.
 
-Bezpośrednio w konsoli (zapis do pliku):
-```bash
-python cybersec.py hide -c "Spotkanie o 10:00" -s "Tajna wiadomosc" -o tajne.txt -p "mojehaslo"
+### Krok 1: Otwórz terminal i przejdź do katalogu projektu
+
+```powershell
+cd "c:\Users\ket4up44\Desktop\vsc projects\python"
+chcp 65001
+```
+*(Polecenie `chcp 65001` jest zalecane na systemie Windows, aby terminal poprawnie interpretował znaki UTF-8)*.
+
+### Krok 2: Przygotuj plik nośny (widoczny tekst, np. niewinny raport)
+
+```powershell
+Set-Content -Path nosnik.txt -Value "Raport dzienny: wszystkie systemy dzialaja poprawnie." -Encoding utf8
 ```
 
-Z wykorzystaniem plików wejściowych:
-```bash
-python cybersec.py hide -cf nosnik.txt -sf sekret.txt -o zamaskowany.txt
-```
-*(Gdy pominiesz flagę `-p`, program poprosi o bezpieczne wpisanie hasła bez wyświetlania go na ekranie)*.
+### Krok 3: Zaszyfruj i ukryj tajną wiadomość
 
-### 2. Odszyfrowywanie wiadomości (`extract`)
+Możesz podać hasło wprost parametrem `-p`:
+```powershell
+python cybersec.py hide -cf nosnik.txt -s "Moj tajny klucz: 9988-ABCD" -o wynik.txt -p "MojeHaslo123"
+```
+*Albo pominąć `-p`, aby wpisać hasło w bezpiecznym monicie (znaki nie pojawią się na ekranie).*
 
-Z pliku:
-```bash
-python cybersec.py extract -i tajne.txt -p "mojehaslo"
+### Krok 4: Sprawdź zamaskowany plik
+
+Otwórz plik w Notatniku lub edytorze kodu:
+```powershell
+notepad wynik.txt
+```
+> **Zauważ:** Plik wygląda dokładnie tak samo jak `nosnik.txt`. Tajna treść jest w 100% niewidoczna!
+
+### Krok 5: Odszyfruj ukrytą treść
+
+```powershell
+python cybersec.py extract -i wynik.txt -p "MojeHaslo123"
+```
+**Wynik na ekranie:**
+```text
+=== ODSZYFROWANA WIADOMOŚĆ ===
+Moj tajny klucz: 9988-ABCD
 ```
 
-Bezpośrednio z tekstu:
-```bash
-python cybersec.py extract -t "Zamaskowany tekst..."
-```
+---
+
+## 🚀 Przegląd Parametrów Linii Poleceń (CLI)
+
+### Podkomenda `hide` (ukrywanie)
+| Parametr | Opis |
+|---|---|
+| `-c "tekst"` | Tekst nośny podany bezpośrednio |
+| `-cf plik.txt` | Ścieżka do pliku z tekstem nośnym |
+| `-s "sekret"` | Tajna wiadomość podana bezpośrednio |
+| `-sf plik.txt` | Ścieżka do pliku z tajną wiadomością |
+| `-o wynik.txt` | Plik docelowy na zamaskowany tekst (**zalecany**) |
+| `-p "haslo"` | Hasło szyfrujące (opcjonalne; brak wywoła monit `getpass`) |
+
+### Podkomenda `extract` (odzyskiwanie)
+| Parametr | Opis |
+|---|---|
+| `-i plik.txt` | Ścieżka do pliku z zamaskowaną treścią |
+| `-t "tekst"` | Zamaskowany tekst przekazany bezpośrednio w konsoli |
+| `-p "haslo"` | Hasło deszyfrujące (opcjonalne; brak wywoła monit `getpass`) |
+| `-o wyjscie.txt`| Zapis odszyfrowanej wiadomości do pliku |
 
 ---
 
@@ -63,7 +103,7 @@ python cybersec.py extract -t "Zamaskowany tekst..."
      ```powershell
      chcp 65001
      ```
-  2. Albo otwórz wygenerowany plik w dowolnym programie z obsługą UTF-8 (np. Notatnik `notepad tajne.txt`, VS Code, przeglądarka internetowa) – tekst będzie w 100% czysty i niewidoczny.
+  2. Albo otwórz wygenerowany plik w dowolnym programie z obsługą UTF-8 (np. Notatnik `notepad wynik.txt`, VS Code, przeglądarka internetowa) – tekst będzie w 100% czysty i niewidoczny.
 
 ### 3. Błąd: `Plik nie istnieje`
 - **Przyczyna:** Zapomnienie flagi `-o <plik>` podczas ukrywania treści. Domyślnie program wyświetla wynik na ekranie konsoli, zamiast zapisywać go do pliku.
