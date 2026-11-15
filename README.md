@@ -16,43 +16,55 @@ Pozwala na bezpieczne ukrywanie zaszyfrowanych wiadomości wewnątrz pozornie ni
   - Kodowanie binarne za pomocą znaków o zerowej szerokości (`\u200b` dla bitu `0`, `\u200c` dla bitu `1`).
   - Separator ukrytego ładunku (`\u200d`).
   - Wizualny tekst nośny pozostaje w 100% czytelny i niezmieniony dla ludzkiego oka.
-- **Brak zewnętrznych zależności:** oparty wyłącznie na standardowej bibliotece Pythona (`hashlib`, `hmac`, `secrets`).
+- **Interfejs CLI i moduł Python:** obsługa poleceń z terminala (pliki/tekst, bezpieczny monit hasła `getpass`) oraz import do własnego kodu.
+- **Brak zewnętrznych zależności:** oparty wyłącznie na standardowej bibliotece Pythona (`hashlib`, `hmac`, `secrets`, `argparse`).
 
 ---
 
-## 🚀 Wymagania
+## 🚀 Użycie w Linii Poleceń (CLI)
 
-- Python 3.8+ (brak dodatkowych bibliotek `pip`).
+### 1. Ukrywanie wiadomości (`hide`)
 
----
-
-## 💻 Użycie
-
-### 1. Klonowanie i uruchomienie przykładu
-
+Bezpośrednio w konsoli:
 ```bash
-python cybersec.py
+python cybersec.py hide -c "Spotkanie o 10:00" -s "Tajna wiadomość"
 ```
 
-### 2. Wykorzystanie w kodzie jako moduł
+Z wykorzystaniem plików:
+```bash
+python cybersec.py hide -cf nosnik.txt -sf sekret.txt -o zamaskowany.txt
+```
+*(Jeśli nie podasz flagi `-p / --password`, program poprosi o bezpieczne wpisanie hasła bez wyświetlania go na ekranie)*.
+
+### 2. Odszyfrowywanie wiadomości (`extract`)
+
+Z pliku:
+```bash
+python cybersec.py extract -i zamaskowany.txt
+```
+
+Bezpośrednio z tekstu:
+```bash
+python cybersec.py extract -t "Zamaskowany tekst..."
+```
+
+---
+
+## 💻 Wykorzystanie jako Moduł w Kodzie
 
 ```python
 from cybersec import hide_secret, extract_secret
 
-# Tekst-przykrywka widoczny dla każdego
 carrier = "Spotkanie projektowe odbędzie się jutro o godzinie 10:00."
-# Tajna informacja
 secret = "Hasło dostępowe do bazy: SuperSecret2026!"
-# Klucz szyfrowania
 password = "MojeTrudneHaslo#123"
 
 # 1. Ukrywanie i szyfrowanie wiadomości
 stego_text = hide_secret(carrier, secret, password)
-print(stego_text)  # Wygląda identycznie jak oryginalny tekst!
 
 # 2. Odszyfrowywanie wiadomości
 decrypted = extract_secret(stego_text, password)
-print(decrypted)   # "Hasło dostępowe do bazy: SuperSecret2026!"
+print(decrypted)
 ```
 
 ---
