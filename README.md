@@ -6,16 +6,18 @@ Pozwala na bezpieczne ukrywanie zaszyfrowanych wiadomości wewnątrz pozornie ni
 
 ---
 
-## 🔒 Kluczowe Funkcje
+## 🔒 Kluczowe Funkcje i Architektura Bezpieczeństwa
+
+Projekt został zaprojektowany zgodnie z **Zasadą Kerckhoffsa** – bezpieczeństwo systemu opiera się wyłącznie na tajemnicy hasła, a nie na ukrywaniu algorytmu. Nawet przy pełnej znajomości kodu źródłowego, odczytanie zaszyfrowanej wiadomości bez hasła jest obliczeniowo niemożliwe.
 
 - **Uwierzytelnione szyfrowanie (Encrypt-then-MAC):**
-  - Wyprowadzanie kluczy: **PBKDF2-HMAC-SHA256** (100 000 iteracji) z losową solą (16 bajtów).
-  - Szyfr strumieniowy: **XOR w trybie licznika (CTR)** z unikalnym wektorem nonce (12 bajtów).
-  - Integralność danych: **HMAC-SHA256** zapobiegający manipulacji i atakom tampering.
+  - Wyprowadzanie kluczy: **PBKDF2-HMAC-SHA256 z 600 000 iteracji** (standard OWASP) i losową solą 16 bajtów (CSPRNG), co czyni ataki słownikowe i tablice tęczowe (Rainbow Tables) bezużytecznymi.
+  - Szyfr strumieniowy: **HMAC-CTR (Counter Mode)** z unikalnym wektorem nonce (16 bajtów) generowanym dla każdego szyfrowania (bezpieczeństwo semantyczne IND-CPA).
+  - Integralność danych: **HMAC-SHA256** weryfikowany w stałym czasie (`constant-time`) przed próbą deszyfrowania (odporność na ataki Bit-Flipping, Padding Oracle i Timing Attacks - IND-CCA2).
 - **Niewidzialna steganografia Unicode:**
   - Kodowanie binarne za pomocą znaków o zerowej szerokości (`\u200b` dla bitu `0`, `\u200c` dla bitu `1`).
-  - Separator ukrytego ładunku (`\u200d`).
-  - Wizualny tekst nośny pozostaje w 100% czytelny i niezmieniony.
+  - Rygorystyczna walidacja struktury bitowej i separatorów ładunku (`\u200d`).
+  - Wizualny tekst nośny pozostaje w 100% czytelny i niezmieniony dla ludzkiego oka.
 - **Interfejs CLI i moduł Python:** obsługa poleceń z terminala (pliki/tekst, bezpieczny monit hasła `getpass`) oraz import do własnego kodu.
 - **Brak zewnętrznych zależności:** oparty wyłącznie na standardowej bibliotece Pythona (`hashlib`, `hmac`, `secrets`, `argparse`).
 
@@ -87,6 +89,22 @@ Moj tajny klucz: 9988-ABCD
 | `-t "tekst"` | Zamaskowany tekst przekazany bezpośrednio w konsoli |
 | `-p "haslo"` | Hasło deszyfrujące (opcjonalne; brak wywoła monit `getpass`) |
 | `-o wyjscie.txt`| Zapis odszyfrowanej wiadomości do pliku |
+
+---
+
+## 🧪 Testy Bezpieczeństwa
+
+Projekt zawiera wbudowany zestaw testów weryfikujący poprawność kryptograficzną, integralność danych oraz odporność na ataki:
+
+```bash
+python test_cybersec.py
+```
+
+Testy sprawdzają m.in.:
+- Niemożność odszyfrowania przy użyciu nieprawidłowego hasła.
+- Natychmiastowe odrzucenie manipulacji bitowej w szyfrogramie (Bit-Flipping / Tamper resistance).
+- Różnorodność szyfrogramów dla tej samej treści (bezpieczeństwo semantyczne IND-CPA).
+- Poprawność znaków Unicode, emoji i tekstów wielolinijkowych.
 
 ---
 

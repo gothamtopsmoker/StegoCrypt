@@ -1,21 +1,14 @@
 """
 Moduł steganograficzno-kryptograficzny (StegoCrypt).
-Ukrywa zaszyfrowane dane (szyfr strumieniowy PBKDF2 + HMAC) wewnątrz zwykłego tekstu
-przy użyciu niewidzialnych znaków o zerowej szerokości (Unicode Zero-Width).
+Ukrywa zaszyfrowane dane (szyfr strumieniowy PBKDF2 + HMAC-CTR + Encrypt-then-MAC)
+wewnątrz zwykłego tekstu przy użyciu niewidzialnych znaków Unicode o zerowej szerokości.
 
-TYPOWE BŁĘDY I ICH ROZWIĄZANIA:
-1. "Błędne hasło lub integralność danych naruszona":
-   - Może wystąpić, gdy do terminala wklejono kilka komend naraz. Monit `getpass`
-     przechwytuje wtedy kolejną wklejoną linijkę jako hasło. Rozwiązanie: podawaj
-     hasło bezpośrednio flagą `-p "haslo"` lub uruchamiaj polecenia pojedynczo.
-2. "Krzaczki" (np. "вЂ‹") zamiast niewidzialnych znaków:
-   - Domyślna strona kodowa konsoli Windows (PowerShell/CMD) to często CP866 lub CP1251.
-     Narzędzia konsolowe (np. Get-Content) interpretują wtedy wielobajtowe znaki UTF-8
-     jako pojedyncze litery ANSI. Rozwiązanie: polecenie `chcp 65001` lub otwarcie
-     pliku w programie obsługującym UTF-8 (np. Notatnik, przeglądarka, edytor kodu).
-3. "Brak pliku przy próbie odszyfrowania":
-   - Wynika z pominięcia flagi `-o <plik>` podczas ukrywania. Samodzielne polecenie `hide`
-     wypisuje tekst na ekran, nie tworząc pliku na dysku.
+GWARANCJE BEZPIECZEŃSTWA (Zasada Kerckhoffsa):
+System jest w pełni bezpieczny nawet przy otwartym kodzie źródłowym.
+Bez znajomości hasła żaden atakujący nie jest w stanie:
+1. Odszyfrować treści (bezpieczeństwo semantyczne IND-CPA - losowa sól i losowy nonce).
+2. Zmodyfikować ani sfabrykować zaszyfrowanej treści (bezpieczeństwo integralności IND-CCA2 - HMAC-SHA256 w stałym czasie).
+3. Przeprowadzić ataku słownikowego bez ogromnego kosztu obliczeniowego (OWASP standard: PBKDF2 600 000 iteracji).
 """
 
 import argparse
@@ -36,29 +29,40 @@ if sys.platform == "win32":
     except Exception:
         pass
 
+# Stałe reprezentujące binarne znaki o zerowej szerokości
 ZW_ZERO = "\u200b"  # Zero-width space -> reprezentacja bitu 0
 ZW_ONE = "\u200c"   # Zero-width non-joiner -> reprezentacja bitu 1
 ZW_DELIM = "\u200d" # Zero-width joiner -> znacznik początku i końca ukrytego ładunku
 
+# Parametry kryptograficzne zgodne ze standardami OWASP i NIST
+PBKDF2_ITERATIONS = 600_000
+SALT_SIZE = 16   # 128 bitów losowej soli
+NONCE_SIZE = 16  # 128 bitów losowego wektora nonce
+TAG_SIZE = 32    # 256 bitów sygnatury HMAC-SHA256
+HEADER_SIZE = SALT_SIZE + NONCE_SIZE + TAG_SIZE  # 64 bajty
+
 
 def _derive_keys(password: str, salt: bytes):
     """
-    Wyprowadza dwa niezależne 256-bitowe klucze (klucz szyfrujący i klucz uwierzytelniający MAC)
-    z hasła i soli za pomocą funkcji PBKDF2 ze 100 000 iteracji SHA-256.
+    Wyprowadza dwa kryptograficznie niezależne 256-bitowe klucze (szyfrujący i uwierzytelniający)
+    z hasła i soli, stosując funkcję PBKDF2 z 600 000 iteracji SHA-256 (standard OWASP).
     """
-    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations=100_000, dklen=64)
-    return derived[:32], derived[32:]
+    if not isinstance(password, str) or not password:
+        raise ValueError("Hasło nie może być puste.")
+    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations=PBKDF2_ITERATIONS, dklen=64)
+    return derived[:32], derived[32:]  # enc_key (32B), mac_key (32B)
 
 
 def _xor_cipher(data: bytes, key: bytes, nonce: bytes) -> bytes:
     """
-    Kryptograficzny szyfr strumieniowy działający w trybie licznika (CTR).
-    Generuje ciąg klucza przez haszowanie (SHA-256) kombinacji klucza, unikalnego nonce i licznika bloków.
+    Kryptograficznie bezpieczny szyfr strumieniowy PRF w trybie licznika (CTR).
+    Wykorzystuje HMAC-SHA256 jako funkcję pseudolosową (PRF) z unikalnym wektorem nonce
+    i 64-bitowym licznikiem bloków, co jest odporne na ataki length-extension.
     """
     keystream = bytearray()
     counter = 0
     while len(keystream) < len(data):
-        block = hashlib.sha256(key + nonce + counter.to_bytes(4, "big")).digest()
+        block = hmac.new(key, nonce + counter.to_bytes(8, "big"), hashlib.sha256).digest()
         keystream.extend(block)
         counter += 1
     return bytes(b ^ k for b, k in zip(data, keystream[:len(data)]))
@@ -66,13 +70,19 @@ def _xor_cipher(data: bytes, key: bytes, nonce: bytes) -> bytes:
 
 def encrypt_payload(secret: str, password: str) -> bytes:
     """
-    Szyfruje tajną treść w schemacie Encrypt-then-MAC:
-    1. Generuje losową sól (16 bajtów) i wektor nonce (12 bajtów).
-    2. Szyfruje tekst jawny szyfrem strumieniowym.
-    3. Tworzy znacznik integralności HMAC-SHA256 na nagłówku i szyfrogramie.
+    Szyfruje tajną treść w standardzie Encrypt-then-MAC:
+    1. Generuje unikalną sól (16B) oraz wektor nonce (16B) z kryptograficznego generatora systemu OS (CSPRNG).
+    2. Szyfruje tekst jawny szyfrem strumieniowym HMAC-CTR.
+    3. Tworzy znacznik autentyczności HMAC-SHA256 na nagłówku (sól + nonce) i szyfrogramie.
+    Pakiet: [SALT(16B)] + [NONCE(16B)] + [HMAC_TAG(32B)] + [CIPHERTEXT]
     """
-    salt = secrets.token_bytes(16)
-    nonce = secrets.token_bytes(12)
+    if not secret:
+        raise ValueError("Tajna wiadomość do ukrycia nie może być pusta.")
+    if not password:
+        raise ValueError("Hasło szyfrujące nie może być puste.")
+
+    salt = secrets.token_bytes(SALT_SIZE)
+    nonce = secrets.token_bytes(NONCE_SIZE)
     enc_key, mac_key = _derive_keys(password, salt)
     ciphertext = _xor_cipher(secret.encode("utf-8"), enc_key, nonce)
     mac = hmac.new(mac_key, salt + nonce + ciphertext, hashlib.sha256).digest()
@@ -82,23 +92,35 @@ def encrypt_payload(secret: str, password: str) -> bytes:
 def decrypt_payload(raw_bytes: bytes, password: str) -> str:
     """
     Weryfikuje integralność danych i odszyfrowuje pakiet:
-    1. Wyodrębnia sól, nonce, znacznik HMAC oraz szyfrogram.
-    2. Sprawdza poprawność sygnatury HMAC (ochrona przed manipulacją treścią).
-    3. W razie niezgodności hasła lub danych zgłasza błąd integralności.
+    1. Sprawdza minimalną długość nagłówka (64 bajty).
+    2. Weryfikuje znacznik HMAC w czasie stałym (constant-time compare) przed jakimkolwiek odszyfrowaniem.
+    3. Odrzuca próbę w razie błędnego hasła lub jakiejkolwiek modyfikacji bitów.
     """
-    if len(raw_bytes) < 60:
-        raise ValueError("Pakiet danych jest zbyt krótki lub uszkodzony.")
-    salt, nonce, tag, ciphertext = raw_bytes[:16], raw_bytes[16:28], raw_bytes[28:60], raw_bytes[60:]
+    if not password:
+        raise ValueError("Hasło deszyfrujące nie może być puste.")
+    if len(raw_bytes) < HEADER_SIZE:
+        raise ValueError(f"Pakiet danych jest zbyt krótki (wymagane min. {HEADER_SIZE} bajtów).")
+
+    salt = raw_bytes[:SALT_SIZE]
+    nonce = raw_bytes[SALT_SIZE:SALT_SIZE + NONCE_SIZE]
+    tag = raw_bytes[SALT_SIZE + NONCE_SIZE:HEADER_SIZE]
+    ciphertext = raw_bytes[HEADER_SIZE:]
+
     enc_key, mac_key = _derive_keys(password, salt)
     expected_mac = hmac.new(mac_key, salt + nonce + ciphertext, hashlib.sha256).digest()
     if not hmac.compare_digest(tag, expected_mac):
         raise ValueError("Błędne hasło lub integralność danych naruszona.")
-    return _xor_cipher(ciphertext, enc_key, nonce).decode("utf-8")
+
+    decrypted_bytes = _xor_cipher(ciphertext, enc_key, nonce)
+    try:
+        return decrypted_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ValueError("Błąd dekodowania tekstu UTF-8 po odszyfrowaniu.")
 
 
 def bytes_to_zero_width(data: bytes) -> str:
     """
-    Konwertuje surowe bajty na ciąg niewidzialnych znaków Unicode:
+    Konwertuje surowe bajty na sekwencję niewidzialnych znaków Unicode:
     Każdy bajt to 8 bitów: '0' -> ZW_ZERO, '1' -> ZW_ONE.
     """
     bits = "".join(f"{byte:08b}" for byte in data)
@@ -107,16 +129,23 @@ def bytes_to_zero_width(data: bytes) -> str:
 
 def zero_width_to_bytes(zw_str: str) -> bytes:
     """
-    Odczytuje niewidzialne znaki Zero-Width ze strumienia i rekonstruuje oryginalne bajty.
+    Odczytuje niewidzialne znaki ze strumienia i rekonstruuje oryginalne bajty.
+    Rygorystycznie waliduje wielokrotność 8 bitów i obecność danych.
     """
-    bits = "".join("1" if ch == ZW_ONE else "0" for ch in zw_str if ch in (ZW_ZERO, ZW_ONE))
-    return bytes(int(bits[i:i+8], 2) for i in range(0, len(bits), 8))
+    bits = [ "1" if ch == ZW_ONE else "0" for ch in zw_str if ch in (ZW_ZERO, ZW_ONE) ]
+    if not bits:
+        raise ValueError("Nie znaleziono żadnych bitów ukrytego ładunku.")
+    if len(bits) % 8 != 0:
+        raise ValueError(f"Uszkodzony ładunek steganograficzny: liczba bitów ({len(bits)}) nie dzieli się przez 8.")
+
+    bit_string = "".join(bits)
+    return bytes(int(bit_string[i:i+8], 2) for i in range(0, len(bit_string), 8))
 
 
 def hide_secret(carrier_text: str, secret: str, password: str) -> str:
     """
     Ukrywa zaszyfrowaną wiadomość wewnątrz tekstu nośnego:
-    1. Usuwa potencjalny znacznik BOM ze źródła.
+    1. Oczyszcza tekst nośny z BOM i weryfikuje zawartość.
     2. Szyfruje sekret i konwertuje na niewidzialne znaki.
     3. Wstrzykuje znaki pomiędzy pierwsze słowa, otaczając je separatorem ZW_DELIM.
     """
@@ -134,11 +163,21 @@ def hide_secret(carrier_text: str, secret: str, password: str) -> str:
 
 def extract_secret(stego_text: str, password: str) -> str:
     """
-    Wydobywa ukryte bity z tekstu nośnego na podstawie separatorów ZW_DELIM i odszyfrowuje je hasłem.
+    Wydobywa ukryte bity z tekstu nośnego za pomocą bezpiecznego dopasowania separatorów ZW_DELIM.
     """
-    if ZW_DELIM not in stego_text:
-        raise ValueError("W podanym tekście nie znaleziono żadnych ukrytych danych StegoCrypt.")
-    payload_part = stego_text.split(ZW_DELIM)[1]
+    parts = stego_text.split(ZW_DELIM)
+    if len(parts) < 3:
+        raise ValueError("W podanym tekście nie znaleziono poprawnych znaczników StegoCrypt.")
+
+    payload_part = None
+    for part in parts[1:]:
+        if any(ch in (ZW_ZERO, ZW_ONE) for ch in part):
+            payload_part = part
+            break
+
+    if not payload_part:
+        raise ValueError("Znaleziono znaczniki StegoCrypt, ale ładunek danych jest pusty.")
+
     raw_bytes = zero_width_to_bytes(payload_part)
     return decrypt_payload(raw_bytes, password)
 
@@ -161,7 +200,7 @@ def _get_password(args_password: str | None, prompt: str = "Wprowadź hasło: ")
 
 def main():
     parser = argparse.ArgumentParser(
-        description="StegoCrypt: Szyfrowanie i steganografia w znakach Zero-Width Unicode."
+        description="StegoCrypt: Uwierzytelnione szyfrowanie i steganografia w znakach Zero-Width Unicode."
     )
     subparsers = parser.add_subparsers(dest="command", help="Dostępne polecenia: hide, extract, demo")
 
