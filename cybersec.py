@@ -18,6 +18,7 @@ import hmac
 import os
 import secrets
 import sys
+import unicodedata
 
 # [ROZWIĄZANIE PROBLEMU KODOWANIA W WINDOWS]
 # Wymuszenie kodowania UTF-8 na wyjściu konsoli Pythona, aby zapobiec
@@ -42,14 +43,18 @@ TAG_SIZE = 32    # 256 bitów sygnatury HMAC-SHA256
 HEADER_SIZE = SALT_SIZE + NONCE_SIZE + TAG_SIZE  # 64 bajty
 
 
-def _derive_keys(password: str, salt: bytes):
+def _derive_keys(password: str, salt: bytes) -> tuple[bytes, bytes]:
     """
     Wyprowadza dwa kryptograficznie niezależne 256-bitowe klucze (szyfrujący i uwierzytelniający)
     z hasła i soli, stosując funkcję PBKDF2 z 600 000 iteracji SHA-256 (standard OWASP).
+    Stosuje normalizację Unicode NFKC, aby zapobiec rozbieżnościom kodowania (np. NFC vs NFD).
     """
     if not isinstance(password, str) or not password:
         raise ValueError("Hasło nie może być puste.")
-    derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations=PBKDF2_ITERATIONS, dklen=64)
+    norm_password = unicodedata.normalize("NFKC", password)
+    derived = hashlib.pbkdf2_hmac(
+        "sha256", norm_password.encode("utf-8"), salt, iterations=PBKDF2_ITERATIONS, dklen=64
+    )
     return derived[:32], derived[32:]  # enc_key (32B), mac_key (32B)
 
 
@@ -98,6 +103,7 @@ def decrypt_payload(raw_bytes: bytes, password: str) -> str:
     """
     if not password:
         raise ValueError("Hasło deszyfrujące nie może być puste.")
+
     if len(raw_bytes) < HEADER_SIZE:
         raise ValueError(f"Pakiet danych jest zbyt krótki (wymagane min. {HEADER_SIZE} bajtów).")
 
@@ -132,7 +138,7 @@ def zero_width_to_bytes(zw_str: str) -> bytes:
     Odczytuje niewidzialne znaki ze strumienia i rekonstruuje oryginalne bajty.
     Rygorystycznie waliduje wielokrotność 8 bitów i obecność danych.
     """
-    bits = [ "1" if ch == ZW_ONE else "0" for ch in zw_str if ch in (ZW_ZERO, ZW_ONE) ]
+    bits = ["1" if ch == ZW_ONE else "0" for ch in zw_str if ch in (ZW_ZERO, ZW_ONE)]
     if not bits:
         raise ValueError("Nie znaleziono żadnych bitów ukrytego ładunku.")
     if len(bits) % 8 != 0:
@@ -164,6 +170,7 @@ def hide_secret(carrier_text: str, secret: str, password: str) -> str:
 def extract_secret(stego_text: str, password: str) -> str:
     """
     Wydobywa ukryte bity z tekstu nośnego za pomocą bezpiecznego dopasowania separatorów ZW_DELIM.
+    Odporne na obecność naturalnych ligatur językowych (ZWJ/ZWNJ) oraz sekwencji emoji.
     """
     parts = stego_text.split(ZW_DELIM)
     if len(parts) < 3:
@@ -171,7 +178,8 @@ def extract_secret(stego_text: str, password: str) -> str:
 
     payload_part = None
     for part in parts[1:]:
-        if any(ch in (ZW_ZERO, ZW_ONE) for ch in part):
+        bits = [ch for ch in part if ch in (ZW_ZERO, ZW_ONE)]
+        if len(bits) >= HEADER_SIZE * 8 and len(bits) % 8 == 0:
             payload_part = part
             break
 
@@ -184,10 +192,15 @@ def extract_secret(stego_text: str, password: str) -> str:
 
 def _get_password(args_password: str | None, prompt: str = "Wprowadź hasło: ") -> str:
     """
-    Bezpieczne pobieranie hasła z obsługą błędów terminala i usuwaniem znaków końca linii (\r, \n).
+    Bezpieczne pobieranie hasła z obsługą błędów terminala i usuwaniem znaków końca linii (\\r, \\n).
+    Gwarantuje, że hasło nie jest puste.
     """
-    if args_password:
-        return args_password.strip("\r\n")
+    if args_password is not None:
+        pwd = args_password.strip("\r\n")
+        if not pwd:
+            sys.exit("Błąd: Hasło nie może być puste.")
+        return pwd
+
     try:
         pwd = getpass.getpass(prompt)
     except (EOFError, KeyboardInterrupt):
@@ -206,17 +219,23 @@ def main():
 
     # hide
     hide_parser = subparsers.add_parser("hide", help="Ukryj zaszyfrowaną wiadomość w tekście nośnym")
-    hide_parser.add_argument("-c", "--carrier", help="Tekst nośny w linii poleceń")
-    hide_parser.add_argument("-cf", "--carrier-file", help="Plik z tekstem nośnym")
-    hide_parser.add_argument("-s", "--secret", help="Tajna wiadomość w linii poleceń")
-    hide_parser.add_argument("-sf", "--secret-file", help="Plik z tajną wiadomością")
+    carrier_group = hide_parser.add_mutually_exclusive_group()
+    carrier_group.add_argument("-c", "--carrier", help="Tekst nośny w linii poleceń")
+    carrier_group.add_argument("-cf", "--carrier-file", help="Plik z tekstem nośnym")
+
+    secret_group = hide_parser.add_mutually_exclusive_group()
+    secret_group.add_argument("-s", "--secret", help="Tajna wiadomość w linii poleceń")
+    secret_group.add_argument("-sf", "--secret-file", help="Plik z tajną wiadomością")
+
     hide_parser.add_argument("-p", "--password", help="Hasło szyfrujące (opcjonalne, domyślnie monit)")
     hide_parser.add_argument("-o", "--output", help="Plik wyjściowy na zamaskowany tekst")
 
     # extract
     extract_parser = subparsers.add_parser("extract", help="Wyodrębnij i odszyfruj ukrytą wiadomość z tekstu")
-    extract_parser.add_argument("-t", "--text", help="Zamaskowany tekst w linii poleceń")
-    extract_parser.add_argument("-i", "--input", help="Plik z zamaskowanym tekstem")
+    input_group = extract_parser.add_mutually_exclusive_group()
+    input_group.add_argument("-t", "--text", help="Zamaskowany tekst w linii poleceń")
+    input_group.add_argument("-i", "--input", help="Plik z zamaskowanym tekstem")
+
     extract_parser.add_argument("-p", "--password", help="Hasło deszyfrujące (opcjonalne, domyślnie monit)")
     extract_parser.add_argument("-o", "--output", help="Plik wyjściowy na odszyfrowaną treść")
 
@@ -225,13 +244,20 @@ def main():
 
     args = parser.parse_args()
 
+    if not args.command:
+        parser.print_help()
+        sys.exit(0)
+
     if args.command == "hide":
         carrier = ""
         if args.carrier_file:
             if not os.path.exists(args.carrier_file):
                 sys.exit(f"Błąd: Plik nośny '{args.carrier_file}' nie istnieje.")
-            with open(args.carrier_file, "r", encoding="utf-8") as f:
-                carrier = f.read()
+            try:
+                with open(args.carrier_file, "r", encoding="utf-8") as f:
+                    carrier = f.read()
+            except (OSError, UnicodeDecodeError) as e:
+                sys.exit(f"[BŁĄD] Błąd operacji na pliku: {e}")
         elif args.carrier:
             carrier = args.carrier
         else:
@@ -241,19 +267,28 @@ def main():
         if args.secret_file:
             if not os.path.exists(args.secret_file):
                 sys.exit(f"Błąd: Plik z tajną wiadomością '{args.secret_file}' nie istnieje.")
-            with open(args.secret_file, "r", encoding="utf-8") as f:
-                secret = f.read()
+            try:
+                with open(args.secret_file, "r", encoding="utf-8") as f:
+                    secret = f.read()
+            except (OSError, UnicodeDecodeError) as e:
+                sys.exit(f"[BŁĄD] Błąd operacji na pliku: {e}")
         elif args.secret:
             secret = args.secret
         else:
             sys.exit("Błąd: Podaj tajną wiadomość za pomocą -s lub -sf.")
 
         password = _get_password(args.password, "Podaj hasło szyfrujące: ")
-        result = hide_secret(carrier, secret, password)
+        try:
+            result = hide_secret(carrier, secret, password)
+        except Exception as e:
+            sys.exit(f"[BŁĄD] Ukrywanie nie powiodło się: {e}")
 
         if args.output:
-            with open(args.output, "w", encoding="utf-8") as f:
-                f.write(result)
+            try:
+                with open(args.output, "w", encoding="utf-8") as f:
+                    f.write(result)
+            except (OSError, UnicodeDecodeError) as e:
+                sys.exit(f"[BŁĄD] Błąd operacji na pliku: {e}")
             print(f"[OK] Zamaskowany tekst pomyślnie zapisano do: {args.output}")
         else:
             print("\n=== ZAMASKOWANY TEKST (SKOPIUJ GO LUB UŻYJ FLAGI -o DO ZAPISU) ===")
@@ -265,8 +300,11 @@ def main():
         if args.input:
             if not os.path.exists(args.input):
                 sys.exit(f"Błąd: Plik '{args.input}' nie istnieje. Najpierw utwórz go poleceniem 'hide -o {args.input}'.")
-            with open(args.input, "r", encoding="utf-8") as f:
-                stego_text = f.read()
+            try:
+                with open(args.input, "r", encoding="utf-8") as f:
+                    stego_text = f.read()
+            except (OSError, UnicodeDecodeError) as e:
+                sys.exit(f"[BŁĄD] Błąd operacji na pliku: {e}")
         elif args.text:
             stego_text = args.text
         else:
@@ -279,14 +317,17 @@ def main():
             sys.exit(f"[BŁĄD] Deszyfrowanie nie powiodło się: {e}")
 
         if args.output:
-            with open(args.output, "w", encoding="utf-8") as f:
-                f.write(secret)
+            try:
+                with open(args.output, "w", encoding="utf-8") as f:
+                    f.write(secret)
+            except (OSError, UnicodeDecodeError) as e:
+                sys.exit(f"[BŁĄD] Błąd operacji na pliku: {e}")
             print(f"[OK] Odszyfrowaną treść zapisano do: {args.output}")
         else:
             print("\n=== ODSZYFROWANA WIADOMOŚĆ ===")
             print(secret)
 
-    else:
+    elif args.command == "demo":
         print("=== STEGOCRYPT: TRYB DEMO ===")
         demo_carrier = "Spotkanie projektowe odbędzie się jutro o godzinie 10:00."
         demo_secret = "Tajny token dostępowy do serwera C2: 9f8a-c142-b09e"
@@ -298,6 +339,10 @@ def main():
         decrypted = extract_secret(stego, demo_pass)
         print(f"Odszyfrowana treść: {decrypted}")
         print("\nAby zobaczyć listę poleceń CLI, uruchom: python cybersec.py --help")
+
+    else:
+        parser.print_help()
+        sys.exit(0)
 
 
 if __name__ == "__main__":

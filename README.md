@@ -12,14 +12,20 @@ Projekt został zaprojektowany zgodnie z **Zasadą Kerckhoffsa** – bezpieczeń
 
 - **Uwierzytelnione szyfrowanie (Encrypt-then-MAC):**
   - Wyprowadzanie kluczy: **PBKDF2-HMAC-SHA256 z 600 000 iteracji** (standard OWASP) i losową solą 16 bajtów (CSPRNG), co czyni ataki słownikowe i tablice tęczowe (Rainbow Tables) bezużytecznymi.
+  - Normalizacja haseł: automatyczna normalizacja **Unicode NFKC**, co zapobiega rozbieżnościom uwierzytelniania między platformami (np. NFC na Windows/Linux vs NFD na macOS).
   - Szyfr strumieniowy: **HMAC-CTR (Counter Mode)** z unikalnym wektorem nonce (16 bajtów) generowanym dla każdego szyfrowania (bezpieczeństwo semantyczne IND-CPA).
   - Integralność danych: **HMAC-SHA256** weryfikowany w stałym czasie (`constant-time`) przed próbą deszyfrowania (odporność na ataki Bit-Flipping, Padding Oracle i Timing Attacks - IND-CCA2).
 - **Niewidzialna steganografia Unicode:**
   - Kodowanie binarne za pomocą znaków o zerowej szerokości (`\u200b` dla bitu `0`, `\u200c` dla bitu `1`).
-  - Rygorystyczna walidacja struktury bitowej i separatorów ładunku (`\u200d`).
+  - Separatory ładunku (`\u200d`) z mechanizmem odpornym na naturalne ligatury językowe (ZWJ/ZWNJ w arabskim, perskim czy sanskrycie) oraz sekwencje emoji.
   - Wizualny tekst nośny pozostaje w 100% czytelny i niezmieniony dla ludzkiego oka.
-- **Interfejs CLI i moduł Python:** obsługa poleceń z terminala (pliki/tekst, bezpieczny monit hasła `getpass`) oraz import do własnego kodu.
-- **Brak zewnętrznych zależności:** oparty wyłącznie na standardowej bibliotece Pythona (`hashlib`, `hmac`, `secrets`, `argparse`).
+- **Charakterystyka ładunku i współczynnik ekspansji:**
+  - 1 bajt tajnych danych = 8 bitów = 8 znaków zero-width.
+  - W standardzie UTF-8 każdy znak zero-width (`\u200b`, `\u200c`, `\u200d`) zajmuje dokładnie 3 bajty.
+  - Stały nagłówek kryptograficzny: 64 bajty (sól 16B + nonce 16B + tag HMAC 32B) = 512 bitów = 1 536 bajtów w UTF-8.
+  - Współczynnik ekspansji wynosi ok. **24x** względem długości szyfrogramu plus stałe 1 536 bajtów nagłówka i 6 bajtów separatorów. Na przykład zaszyfrowanie i ukrycie 100 bajtów sekretu generuje ~3 942 bajty niewidzialnych znaków Unicode.
+- **Interfejs CLI i moduł Python:** obsługa poleceń z terminala (pliki/tekst, bezpieczny monit hasła `getpass`, wzajemnie wykluczające się grupy argumentów, czytelne komunikaty błędów) oraz prosty import do własnego kodu.
+- **Brak zewnętrznych zależności:** oparty wyłącznie na standardowej bibliotece Pythona (`hashlib`, `hmac`, `secrets`, `argparse`, `unicodedata`).
 
 ---
 
@@ -72,23 +78,34 @@ Moj tajny klucz: 9988-ABCD
 
 ## 🚀 Przegląd Parametrów Linii Poleceń (CLI)
 
+Uruchomienie skryptu bez żadnych argumentów (`python cybersec.py`) wyświetla pełny ekran pomocy (`usage / --help`) i kończy działanie z kodem 0.
+
 ### Podkomenda `hide` (ukrywanie)
 | Parametr | Opis |
 |---|---|
-| `-c "tekst"` | Tekst nośny podany bezpośrednio |
-| `-cf plik.txt` | Ścieżka do pliku z tekstem nośnym |
-| `-s "sekret"` | Tajna wiadomość podana bezpośrednio |
-| `-sf plik.txt` | Ścieżka do pliku z tajną wiadomością |
+| `-c "tekst"` | Tekst nośny podany bezpośrednio w linii poleceń |
+| `-cf plik.txt` | Ścieżka do pliku z tekstem nośnym (wyklucza `-c`) |
+| `-s "sekret"` | Tajna wiadomość podana bezpośrednio w linii poleceń |
+| `-sf plik.txt` | Ścieżka do pliku z tajną wiadomością (wyklucza `-s`) |
 | `-o wynik.txt` | Plik docelowy na zamaskowany tekst (**zalecany**) |
-| `-p "haslo"` | Hasło szyfrujące (opcjonalne; brak wywoła monit `getpass`) |
+| `-p "haslo"` | Hasło szyfrujące (opcjonalne; brak wywoła bezpieczny monit `getpass`) |
 
 ### Podkomenda `extract` (odzyskiwanie)
 | Parametr | Opis |
 |---|---|
-| `-i plik.txt` | Ścieżka do pliku z zamaskowaną treścią |
+| `-i plik.txt` | Ścieżka do pliku z zamaskowaną treścią (wyklucza `-t`) |
 | `-t "tekst"` | Zamaskowany tekst przekazany bezpośrednio w konsoli |
-| `-p "haslo"` | Hasło deszyfrujące (opcjonalne; brak wywoła monit `getpass`) |
+| `-p "haslo"` | Hasło deszyfrujące (opcjonalne; brak wywoła bezpieczny monit `getpass`) |
 | `-o wyjscie.txt`| Zapis odszyfrowanej wiadomości do pliku |
+
+### Podkomenda `demo` (pokaz działania)
+Uruchamia wbudowany, automatyczny pokaz procesu szyfrowania, wstrzykiwania steganograficznego oraz ekstrakcji na przykładowych danych:
+```bash
+python cybersec.py demo
+```
+
+> ⚠️ **Ostrzeżenie bezpieczeństwa dotyczące parametru `-p` / `--password`:**  
+> Przekazywanie hasła bezpośrednio w wierszu poleceń (`-p "haslo"`) powoduje, że hasło staje się widoczne w liście procesów systemu operacyjnego (`ps aux`, Windows Task Manager) oraz może zostać zapisane w historii poleceń powłoki (np. `.bash_history` lub historia PowerShell). W środowiskach produkcyjnych zaleca się pominięcie flagi `-p` i wprowadzenie hasła poprzez bezpieczny monit interaktywny.
 
 ---
 
@@ -104,7 +121,10 @@ Testy sprawdzają m.in.:
 - Niemożność odszyfrowania przy użyciu nieprawidłowego hasła.
 - Natychmiastowe odrzucenie manipulacji bitowej w szyfrogramie (Bit-Flipping / Tamper resistance).
 - Różnorodność szyfrogramów dla tej samej treści (bezpieczeństwo semantyczne IND-CPA).
+- Normalizację haseł Unicode (NFC vs NFD).
+- Odporność na ligatury ZWJ/ZWNJ i emoji w tekście nośnym.
 - Poprawność znaków Unicode, emoji i tekstów wielolinijkowych.
+- Walidację argumentów i obsługę błędów CLI.
 
 ---
 
@@ -126,6 +146,10 @@ Testy sprawdzają m.in.:
 ### 3. Błąd: `Plik nie istnieje`
 - **Przyczyna:** Zapomnienie flagi `-o <plik>` podczas ukrywania treści. Domyślnie program wyświetla wynik na ekranie konsoli, zamiast zapisywać go do pliku.
 - **Rozwiązanie:** Upewnij się, że polecenie `hide` zawiera `-o <nazwa_pliku>`.
+
+### 4. Usunięcie ładunku steganograficznego przez komunikatory i platformy webowe (stripping)
+- **Przyczyna:** Niektóre aplikacje webowe, komunikatory (np. Discord, Slack, X/Twitter), edytory Markdown czy systemy CMS automatycznie wycinają lub sanityzują znaki o zerowej szerokości podczas wklejania lub renderowania tekstu.
+- **Rozwiązanie:** W przypadku przesyłania steganogramu przez platformy filtrujące znaki zero-width, przesyłaj steganogram jako nienaruszony załącznik plikowy (`.txt` zapisany z flagą `-o`), a nie wklejaj go jako treść wiadomości na czacie.
 
 ---
 

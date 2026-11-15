@@ -1,8 +1,18 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
 # Pliki testowe i zrzuty danych
 *.txt
 *.log
 
-# Środowiska wirtualne
+# Scratch / temporary scripts
+main.py
+xd.py
+
+# Srodowiska wirtualne
 venv/
 env/
 .env
