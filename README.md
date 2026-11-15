@@ -25,13 +25,13 @@ Pozwala na bezpieczne ukrywanie zaszyfrowanych wiadomości wewnątrz pozornie ni
 
 Poniższy przykład przedstawia pełny, poprawny cykl pracy z aplikacją w terminalu Windows / Linux.
 
-### Krok 1: Otwórz terminal i przejdź do katalogu projektu
+### Krok 1: Sklonuj repozytorium i przejdź do folderu projektu
 
-```powershell
-cd "C:\Users\Nazwa twojego komputera\Desktop\vsc projects\python"
-chcp 65001
+```bash
+git clone https://github.com/gothamtopsmoker/StegoCrypt.git
+cd StegoCrypt
 ```
-*(Polecenie `chcp 65001` jest zalecane na systemie Windows, aby terminal poprawnie interpretował znaki UTF-8)*.
+*(Użytkownicy systemu Windows w PowerShell/CMD mogą opcjonalnie wykonać `chcp 65001`, aby włączyć pełne wsparcie kodowania UTF-8 w konsoli)*.
 
 ### Krok 2: Przygotuj plik nośny (widoczny tekst, np. niewinny raport)
 
