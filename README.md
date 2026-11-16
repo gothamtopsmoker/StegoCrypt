@@ -4,6 +4,28 @@ Projekt z zakresu cyberbezpieczeństwa łączący uwierzytelnione szyfrowanie sy
 
 Pozwala na bezpieczne ukrywanie zaszyfrowanych wiadomości wewnątrz pozornie niewinnego tekstu (np. e-maila, posta na forum czy komunikatora), bez zmiany jego wizualnego wyglądu dla ludzkiego oka.
 
+> ℹ️ **Uwaga dotycząca repozytorium:** Zgodnie z polityką projektu, kod źródłowy (`*.py`) jest oceniany lokalnie w środowisku IDE (Visual Studio / VS Code) i wykluczony ze śledzenia w Git poprzez `.gitignore`. Repozytorium zdalne przechowuje oficjalną dokumentację oraz konfigurację.
+
+---
+
+## 💻 Wymagania i Przygotowanie Środowiska
+
+- **Wymagania:** Python **3.10+** (brak jakichkolwiek zależności zewnętrznych — 100% czysta biblioteka standardowa Pythona: `hashlib`, `hmac`, `secrets`, `argparse`, `unicodedata`, `getpass`).
+- **Instalacja / Klonowanie:**
+
+**Windows (PowerShell):**
+```powershell
+git clone https://github.com/gothamtopsmoker/StegoCrypt.git
+cd StegoCrypt
+chcp 65001
+```
+
+**Linux / macOS (Bash / Zsh):**
+```bash
+git clone https://github.com/gothamtopsmoker/StegoCrypt.git
+cd StegoCrypt
+```
+
 ---
 
 ## 🔒 Kluczowe Funkcje i Architektura Bezpieczeństwa
@@ -42,23 +64,7 @@ Projekt został zaprojektowany zgodnie z **Zasadą Kerckhoffsa** – bezpieczeń
 
 ## 🎯 Kompletny Przewodnik Krok po Kroku (Quickstart)
 
-Poniższy przykład przedstawia pełny cykl pracy z aplikacją w środowisku lokalnym:
-
-### Krok 1: Przejdź do katalogu z projektem
-
-**Windows (PowerShell / CMD):**
-```powershell
-cd sciezka\do\projektu
-chcp 65001
-```
-*(Polecenie `chcp 65001` włącza pełne wsparcie dla kodowania UTF-8 w konsoli Windows)*.
-
-**Linux / macOS (Bash / Zsh):**
-```bash
-cd sciezka/do/projektu
-```
-
-### Krok 2: Przygotuj plik nośny (widoczny tekst, np. niewinny raport)
+### Krok 1: Przygotuj plik nośny (widoczny tekst, np. niewinny raport)
 
 **Windows (PowerShell):**
 ```powershell
@@ -70,15 +76,20 @@ Set-Content -Path nosnik.txt -Value "Raport dzienny: wszystkie systemy dzialaja 
 echo "Raport dzienny: wszystkie systemy dzialaja poprawnie." > nosnik.txt
 ```
 
-### Krok 3: Zaszyfruj i ukryj tajną wiadomość
+### Krok 2: Zaszyfruj i ukryj tajną wiadomość
 
-```bash
-# Na Windows: python, na Linux/macOS: python3 (jeśli alias nie jest ustawiony)
+**Windows (PowerShell):**
+```powershell
 python cybersec.py hide -cf nosnik.txt -s "Moj tajny klucz: 9988-ABCD" -o wynik.txt -p "MojeHaslo123"
 ```
-*Albo pominąć `-p`, aby wpisać hasło w bezpiecznym monicie (znaki nie pojawią się na ekranie).*
 
-### Krok 4: Sprawdź zamaskowany plik
+**Linux / macOS (Bash):**
+```bash
+python3 cybersec.py hide -cf nosnik.txt -s "Moj tajny klucz: 9988-ABCD" -o wynik.txt -p "MojeHaslo123"
+```
+*(Uwaga: Można pominąć parametr `-p`, aby wprowadzić hasło w bezpiecznym, interaktywnym monicie).*
+
+### Krok 3: Sprawdź zamaskowany plik
 
 **Windows:**
 ```powershell
@@ -92,11 +103,18 @@ cat wynik.txt
 ```
 > **Zauważ:** Plik wygląda dokładnie tak samo jak `nosnik.txt`. Tajna treść jest w 100% niewidoczna!
 
-### Krok 5: Odszyfruj ukrytą treść
+### Krok 4: Odszyfruj ukrytą treść
 
-```bash
+**Windows (PowerShell):**
+```powershell
 python cybersec.py extract -i wynik.txt -p "MojeHaslo123"
 ```
+
+**Linux / macOS (Bash):**
+```bash
+python3 cybersec.py extract -i wynik.txt -p "MojeHaslo123"
+```
+
 **Wynik na ekranie:**
 ```text
 === ODSZYFROWANA WIADOMOŚĆ ===
@@ -107,30 +125,37 @@ Moj tajny klucz: 9988-ABCD
 
 ## 🚀 Przegląd Parametrów Linii Poleceń (CLI)
 
-Uruchomienie skryptu bez żadnych argumentów (`python cybersec.py`) wyświetla pełny ekran pomocy (`usage / --help`) i kończy działanie z kodem 0.
+Uruchomienie skryptu bez żadnych argumentów (`python cybersec.py` lub `python3 cybersec.py`) wyświetla pełny ekran pomocy (`usage / --help`) i kończy działanie z kodem 0.
 
 ### Podkomenda `hide` (ukrywanie)
-| Parametr | Opis |
+| Parametr (krótki / długi) | Opis |
 |---|---|
-| `-c "tekst"` | Tekst nośny podany bezpośrednio w linii poleceń (wyklucza `-cf`) |
-| `-cf plik.txt` | Ścieżka do pliku z tekstem nośnym (wyklucza `-c`) |
-| `-s "sekret"` | Tajna wiadomość podana bezpośrednio w linii poleceń (wyklucza `-sf`) |
-| `-sf plik.txt` | Ścieżka do pliku z tajną wiadomością (wyklucza `-s`) |
-| `-o wynik.txt` | Plik docelowy na zamaskowany tekst (**zalecany**) |
-| `-p "haslo"` | Hasło szyfrujące (opcjonalne; brak wywoła bezpieczny monit `getpass`) |
+| `-c, --carrier "tekst"` | Tekst nośny podany bezpośrednio w linii poleceń (wyklucza `-cf`) |
+| `-cf, --carrier-file plik.txt` | Ścieżka do pliku z tekstem nośnym (wyklucza `-c`) |
+| `-s, --secret "sekret"` | Tajna wiadomość podana bezpośrednio w linii poleceń (wyklucza `-sf`) |
+| `-sf, --secret-file plik.txt` | Ścieżka do pliku z tajną wiadomością (wyklucza `-s`) |
+| `-o, --output wynik.txt` | Plik docelowy na zamaskowany tekst (**zalecany**) |
+| `-p, --password "haslo"` | Hasło szyfrujące (opcjonalne; brak wywoła bezpieczny monit `getpass`) |
 
 ### Podkomenda `extract` (odzyskiwanie)
-| Parametr | Opis |
+| Parametr (krótki / długi) | Opis |
 |---|---|
-| `-i plik.txt` | Ścieżka do pliku z zamaskowaną treścią (wyklucza `-t`) |
-| `-t "tekst"` | Zamaskowany tekst przekazany bezpośrednio w konsoli (wyklucza `-i`) |
-| `-p "haslo"` | Hasło deszyfrujące (opcjonalne; brak wywoła bezpieczny monit `getpass`) |
-| `-o wyjscie.txt`| Zapis odszyfrowanej wiadomości do pliku docelowego |
+| `-i, --input plik.txt` | Ścieżka do pliku z zamaskowaną treścią (wyklucza `-t`) |
+| `-t, --text "tekst"` | Zamaskowany tekst przekazany bezpośrednio w konsoli (wyklucza `-i`) |
+| `-p, --password "haslo"` | Hasło deszyfrujące (opcjonalne; brak wywoła bezpieczny monit `getpass`) |
+| `-o, --output wyjscie.txt` | Zapis odszyfrowanej wiadomości do pliku docelowego |
 
 ### Podkomenda `demo` (pokaz działania)
 Uruchamia wbudowany, automatyczny pokaz procesu szyfrowania, wstrzykiwania steganograficznego oraz ekstrakcji na przykładowych danych:
-```bash
+
+**Windows (PowerShell):**
+```powershell
 python cybersec.py demo
+```
+
+**Linux / macOS (Bash):**
+```bash
+python3 cybersec.py demo
 ```
 
 > ⚠️ **Ostrzeżenie bezpieczeństwa dotyczące parametru `-p` / `--password`:**  
@@ -140,7 +165,7 @@ python cybersec.py demo
 | Kod wyjścia | Znaczenie | Przykładowy komunikat / Przyczyna |
 |---|---|---|
 | 0 | Sukces / Wyświetlenie pomocy | Pomyślne wykonanie poleceń `hide`, `extract`, `demo` lub wywołanie bez argumentów / z `--help`. |
-| 1 | Błąd operacyjny / walidacji | `Błąd: Hasło nie może być puste.`, `[BŁĄD] Plik nośny '...' nie istnieje.`, `[BŁĄD] Deszyfrowanie nie powiodło się: Błędne hasło lub integralność danych naruszona.`, `[BŁĄD] Tekst nośny nie może być pusty.`, `[ANULOWANO] Przerwano wprowadzanie hasła.` |
+| 1 | Błąd operacyjny / walidacji | `Błąd: Hasło nie może być puste.`, `Błąd: Plik nośny '...' nie istnieje.`, `[BŁĄD] Deszyfrowanie nie powiodło się: Błędne hasło lub integralność danych naruszona.`, `[BŁĄD] Ukrywanie nie powiodło się: Tekst nośny nie może być pusty.`, `[ANULOWANO] Przerwano wprowadzanie hasła.` |
 | 2 | Błąd składni argumentów CLI | Błąd parsera `argparse`, np. podanie wykluczających się flag `-c` i `-cf` jednocześnie (`argument -cf/--carrier-file: not allowed with argument -c/--carrier`). |
 
 ---
@@ -149,16 +174,45 @@ python cybersec.py demo
 
 Projekt zawiera wbudowany zestaw 25 rygorystycznych testów jednostkowych i integracyjnych weryfikujących poprawność kryptograficzną, integralność danych oraz odporność na ataki:
 
-```bash
+**Windows (PowerShell):**
+```powershell
 python -m unittest test_cybersec.py
+# lub w trybie szczegółowym:
+python -m unittest -v test_cybersec.py
 ```
 
-Testy sprawdzają m.in.:
-- **Zasada Kerckhoffsa:** Niemożność odszyfrowania przy użyciu nieprawidłowego hasła.
-- **Integralność IND-CCA2:** Natychmiastowe odrzucenie manipulacji bitowej w szyfrogramie, soli, nonce lub tagu HMAC.
-- **Bezpieczeństwo semantyczne IND-CPA:** Unikalność soli i nonce CSPRNG przy wielokrotnym szyfrowaniu tego samego tekstu jawnego.
-- **Normalizacja haseł Unicode:** Pełna zgodność form NFC oraz NFD dzięki normalizacji NFKC.
-- **Odporność steganograficzna:** Poprawna ekstrakcja z nośników zawierających naturalne znaki ZWJ/ZWNJ i emoji wieloznakowe.
+**Linux / macOS (Bash):**
+```bash
+python3 -m unittest test_cybersec.py
+# lub w trybie szczegółowym:
+python3 -m unittest -v test_cybersec.py
+```
+
+### Zakres weryfikacji testów (25/25):
+1. **Moduł kryptograficzno-jednostkowy (`TestStegoCryptSecurity` – 19 testów):**
+   - **Pełny cykl end-to-end:** Bezstratne szyfrowanie i odzyskanie tekstu (`test_correct_roundtrip`).
+   - **Zasada Kerckhoffsa:** Niemożność odszyfrowania przy użyciu nieprawidłowego hasła (`test_wrong_password_rejected`).
+   - **Bezpieczeństwo semantyczne IND-CPA:** Unikalność losowej soli CSPRNG (16B) i nonce CSPRNG (16B) (`test_ind_cpa_semantic_security`).
+   - **Integralność IND-CCA2 (Bit-Flipping):** Natychmiastowe odrzucenie manipulacji bitowej w szyfrogramie (`test_tamper_ciphertext_bit_flipping_rejected`).
+   - **Integralność nagłówka:** Odrzucenie modyfikacji nonce (`test_tamper_nonce_rejected`), soli (`test_tamper_salt_rejected`) oraz tagu HMAC (`test_tamper_tag_rejected`).
+   - **Binarne odwzorowanie Zero-Width:** Odporność i bijekcja losowych 100 bajtów CSPRNG (`test_zero_width_bit_integrity`).
+   - **Spójność ramki bitowej:** Odrzucenie strumienia o długości niebędącej wielokrotnością 8 (`test_invalid_zero_width_stream_rejected`).
+   - **Walidacja danych wejściowych:** Odrzucenie pustych parametrów hasła, nośnika i sekretu (`test_empty_inputs_rejected`).
+   - **Złożone sekwencje UTF-8:** Pełne wsparcie dla 4-bajtowych emoji, diakrytyków i wielolinijkowych tekstów (`test_multiline_and_unicode_secrets`).
+   - **Normalizacja haseł Unicode (NFKC):** Odporność na różnice kompozycji macOS (NFD) vs Windows/Linux (NFC) (`test_password_unicode_normalization_nfc_nfd`).
+   - **Odporność na emoji i ligatury:** Bezbłędna ekstrakcja w obecności naturalnych sekwencji ZWJ i emoji (`test_carrier_with_natural_zero_width_chars`).
+   - **Ochrona nagłówka:** Odrzucenie pakietów krótszych niż 64 bajty nagłówka (`test_truncated_payload_rejected`).
+   - **Wykrywanie braku danych:** Odrzucenie czystego nośnika bez znaczników ramki (`test_clean_carrier_extract_rejected`) oraz pustego nośnika między znacznikami (`test_empty_payload_between_delimiters_rejected`).
+   - **Przypadki brzegowe nośnika:** Prawidłowa obsługa nośnika jednosłownego (`test_single_word_carrier_roundtrip`) oraz nośników ze znacznikiem UTF-8 BOM (`test_carrier_with_bom_roundtrip`).
+   - **Walidacja deserializacji:** Odrzucenie zwykłych znaków przekazanych do dekodera binarnego (`test_zero_width_to_bytes_non_zw_rejected`).
+
+2. **Moduł integracyjny CLI (`TestStegoCryptCLI` – 6 testów):**
+   - **Domyślna pomoc:** Wywołanie bez argumentów wyświetla pomoc i zwraca kod 0 (`test_cli_no_args_shows_help`).
+   - **Tryb demonstracyjny:** Prawidłowe działanie podkomendy `demo` z kodem wyjścia 0 (`test_cli_demo_command`).
+   - **Pełny cykl I/O na plikach:** Obsługa parametrów `-cf`, `-sf`, `-o`, `-i` z kodem wyjścia 0 (`test_cli_hide_and_extract_roundtrip_with_files`).
+   - **Elegancka obsługa błędów:** Pusty nośnik kończy się kodem 1 bez śladu stosu traceback (`test_cli_error_empty_carrier`).
+   - **Wykluczające się flagi:** Podanie sprzecznych parametrów (np. `-c` i `-cf`) zwraca kod 2 `argparse` (`test_cli_mutually_exclusive_args`).
+   - **Brak steganogramu:** Błąd ekstrakcji ze zwykłego tekstu zwraca kod 1 (`test_cli_extract_invalid_text`).
 
 ---
 
