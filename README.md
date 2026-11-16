@@ -44,39 +44,57 @@ Projekt został zaprojektowany zgodnie z **Zasadą Kerckhoffsa** – bezpieczeń
 
 Poniższy przykład przedstawia pełny cykl pracy z aplikacją w środowisku lokalnym:
 
-### Krok 1: Przejdź do folderu projektu
+### Krok 1: Przejdź do katalogu z projektem
 
+**Windows (PowerShell / CMD):**
 ```powershell
-cd "c:\Users\Nazwa twojego komputera\Desktop\vsc projects\python"
+cd sciezka\do\projektu
 chcp 65001
 ```
-*(Polecenie `chcp 65001` jest zalecane na systemie Windows, aby terminal poprawnie interpretował znaki UTF-8)*.
+*(Polecenie `chcp 65001` włącza pełne wsparcie dla kodowania UTF-8 w konsoli Windows)*.
+
+**Linux / macOS (Bash / Zsh):**
+```bash
+cd sciezka/do/projektu
+```
 
 ### Krok 2: Przygotuj plik nośny (widoczny tekst, np. niewinny raport)
 
+**Windows (PowerShell):**
 ```powershell
 Set-Content -Path nosnik.txt -Value "Raport dzienny: wszystkie systemy dzialaja poprawnie." -Encoding utf8
 ```
 
+**Linux / macOS (Bash):**
+```bash
+echo "Raport dzienny: wszystkie systemy dzialaja poprawnie." > nosnik.txt
+```
+
 ### Krok 3: Zaszyfruj i ukryj tajną wiadomość
 
-Możesz podać hasło wprost parametrem `-p`:
-```powershell
+```bash
+# Na Windows: python, na Linux/macOS: python3 (jeśli alias nie jest ustawiony)
 python cybersec.py hide -cf nosnik.txt -s "Moj tajny klucz: 9988-ABCD" -o wynik.txt -p "MojeHaslo123"
 ```
 *Albo pominąć `-p`, aby wpisać hasło w bezpiecznym monicie (znaki nie pojawią się na ekranie).*
 
 ### Krok 4: Sprawdź zamaskowany plik
 
-Otwórz plik w Notatniku lub edytorze kodu:
+**Windows:**
 ```powershell
 notepad wynik.txt
+```
+
+**Linux / macOS:**
+```bash
+cat wynik.txt
+# lub w edytorze: nano wynik.txt
 ```
 > **Zauważ:** Plik wygląda dokładnie tak samo jak `nosnik.txt`. Tajna treść jest w 100% niewidoczna!
 
 ### Krok 5: Odszyfruj ukrytą treść
 
-```powershell
+```bash
 python cybersec.py extract -i wynik.txt -p "MojeHaslo123"
 ```
 **Wynik na ekranie:**
