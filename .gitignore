@@ -1,18 +1,14 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
+# Pliki kodu źródłowego Pythona (lokalne do oceny w Visual Studio / VS Code)
+*.py
 *.py[cod]
 *$py.class
-*.pyc
+__pycache__/
 
 # Pliki testowe i zrzuty danych
 *.txt
 *.log
 
-# Scratch / temporary scripts
-main.py
-xd.py
-
-# Srodowiska wirtualne
+# Środowiska wirtualne
 venv/
 env/
 .env
