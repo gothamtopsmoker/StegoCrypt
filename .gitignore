@@ -1,8 +1,9 @@
-# Pliki kodu źródłowego Pythona (lokalne do oceny w Visual Studio / VS Code)
-*.py
+# Pliki pomocnicze i tymczasowe Pythona
 *.py[cod]
 *$py.class
 __pycache__/
+main.py
+xd.py
 
 # Pliki testowe i zrzuty danych
 *.txt

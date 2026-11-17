@@ -4,8 +4,6 @@ Projekt z zakresu cyberbezpieczeństwa łączący uwierzytelnione szyfrowanie sy
 
 Pozwala na bezpieczne ukrywanie zaszyfrowanych wiadomości wewnątrz pozornie niewinnego tekstu (np. e-maila, posta na forum czy komunikatora), bez zmiany jego wizualnego wyglądu dla ludzkiego oka.
 
-> ℹ️ **Uwaga dotycząca repozytorium:** Zgodnie z polityką projektu, kod źródłowy (`*.py`) jest oceniany lokalnie w środowisku IDE (Visual Studio / VS Code) i wykluczony ze śledzenia w Git poprzez `.gitignore`. Repozytorium zdalne przechowuje oficjalną dokumentację oraz konfigurację.
-
 ---
 
 ## 💻 Wymagania i Przygotowanie Środowiska
